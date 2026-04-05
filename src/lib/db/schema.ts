@@ -69,6 +69,7 @@ export const orders = pgTable("orders", {
   activationOutlet: text("activation_outlet").default("Ngurah Rai Airport"),
   notes: text("notes"),
   expiresAt: timestamp("expires_at"), // 2 hour payment window
+  pickupReminderSent: boolean("pickup_reminder_sent").default(false), // Track if reminder was sent
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

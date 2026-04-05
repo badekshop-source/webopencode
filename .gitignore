@@ -1,0 +1,26 @@
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
+# Environment
+.env*.local
+!.env.example
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+npm-debug.log*

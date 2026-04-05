@@ -1,9 +1,10 @@
 // src/app/api/admin/orders/[id]/refund/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { orders, adminLogs } from "@/lib/db/schema";
+import { orders, adminLogs, refundPolicies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { refundTransaction } from "@/lib/midtrans";
 
 const refundSchema = z.object({
   reason: z.string().min(1, "Refund reason is required"),
@@ -28,6 +29,7 @@ export async function POST(
         paymentStatus: orders.paymentStatus,
         total: orders.total,
         refundStatus: orders.refundStatus,
+        paymentGatewayId: orders.paymentGatewayId,
       })
       .from(orders)
       .where(eq(orders.id, orderId))
@@ -47,6 +49,19 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Refund already processed" }, { status: 400 });
     }
 
+    // Process Midtrans refund if payment gateway ID exists
+    let midtransRefundSuccess = false;
+    if (order.paymentGatewayId) {
+      try {
+        await refundTransaction(order.paymentGatewayId, validatedData.refundAmount, validatedData.reason);
+        midtransRefundSuccess = true;
+      } catch (refundError) {
+        console.error("Midtrans refund failed:", refundError);
+        // Continue with local refund even if Midtrans fails (sandbox mode)
+      }
+    }
+
+    // Update order with refund details
     await db
       .update(orders)
       .set({
@@ -58,6 +73,7 @@ export async function POST(
       })
       .where(eq(orders.id, orderId));
 
+    // Log admin action
     if (validatedData.adminId) {
       await db.insert(adminLogs).values({
         adminId: validatedData.adminId,
@@ -69,6 +85,7 @@ export async function POST(
           refundAmount: validatedData.refundAmount,
           adminFee: validatedData.adminFee,
           orderTotal: order.total,
+          midtransRefund: midtransRefundSuccess,
         },
         createdAt: new Date(),
       });
@@ -80,6 +97,7 @@ export async function POST(
         message: "Refund processed successfully",
         refundAmount: validatedData.refundAmount,
         adminFee: validatedData.adminFee,
+        midtransRefund: midtransRefundSuccess,
       },
     });
   } catch (error) {

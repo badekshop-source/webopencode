@@ -8,6 +8,7 @@ import {
   Clock, 
   MapPin, 
   ChevronRight,
+  ChevronDown,
   Smartphone,
   Globe,
   Zap
@@ -25,6 +26,22 @@ export function HeroSection() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Animated Background Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-700 to-blue-500">
+        {/* Hero Illustration - Phone Mockup */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+          <svg className="w-[800px] h-[800px]" viewBox="0 0 400 400" fill="none">
+            <rect x="120" y="40" width="160" height="320" rx="20" stroke="white" strokeWidth="2"/>
+            <rect x="140" y="80" width="120" height="200" rx="4" stroke="white" strokeWidth="1.5"/>
+            <circle cx="200" cy="320" r="8" stroke="white" strokeWidth="1.5"/>
+            <rect x="170" y="50" width="60" height="6" rx="3" stroke="white" strokeWidth="1"/>
+            <rect x="160" y="100" width="80" height="40" rx="4" stroke="white" strokeWidth="1"/>
+            <rect x="160" y="155" width="50" height="6" rx="3" stroke="white" strokeWidth="1"/>
+            <rect x="160" y="170" width="80" height="6" rx="3" stroke="white" strokeWidth="1"/>
+            <rect x="160" y="185" width="60" height="6" rx="3" stroke="white" strokeWidth="1"/>
+            <rect x="160" y="210" width="80" height="30" rx="4" stroke="white" strokeWidth="1"/>
+            <path d="M180 225 L190 225 L195 220 L205 230 L215 215" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </div>
+        
         {/* Animated gradient orbs */}
         <motion.div
           className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/30 rounded-full blur-3xl"
@@ -116,7 +133,7 @@ export function HeroSection() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
             <span className="text-white/90 text-sm font-medium">
-              Bali&apos;s #1 Trusted SIM Provider
+              Kominfo Licensed &bull; Trusted by Tourists Since 2020
             </span>
           </motion.div>
 
@@ -140,7 +157,7 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl md:text-2xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed"
           >
-            Instant eSIM & SIM cards for tourists. Seamless connectivity from the moment you land in Bali.
+            Instant eSIM & SIM cards from Rp 150K. Seamless connectivity from the moment you land in Bali.
           </motion.p>
 
           {/* CTA Buttons */}
@@ -154,7 +171,8 @@ export function HeroSection() {
               href={"/products" as any}
               className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-blue-700 rounded-full font-bold text-lg hover:shadow-2xl hover:shadow-white/25 transition-all duration-300 hover:scale-105"
             >
-              Browse Plans
+              View Plans
+              <span className="text-sm font-normal text-blue-500 ml-1">from Rp 150K</span>
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <Link
@@ -165,7 +183,7 @@ export function HeroSection() {
             </Link>
           </motion.div>
 
-          {/* Trust Indicators */}
+          {/* Trust Indicators - Accurate & Verifiable */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -174,8 +192,8 @@ export function HeroSection() {
           >
             <TrustIndicator 
               icon={Shield} 
-              label="Secure Payment" 
-              sublabel="Midtrans Protection"
+              label="Kominfo Licensed" 
+              sublabel="Official Provider"
             />
             <TrustIndicator 
               icon={Clock} 
@@ -189,12 +207,24 @@ export function HeroSection() {
             />
             <TrustIndicator 
               icon={Wifi} 
-              label="50K+ Happy Users" 
-              sublabel="4.9/5 Rating"
+              label="24/7 Support" 
+              sublabel="WhatsApp Available"
             />
           </motion.div>
         </div>
       </div>
+
+      {/* Scroll Indicator */}
+      <motion.div
+        animate={{ y: [0, 10, 0] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 cursor-pointer"
+        onClick={() => {
+          document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      >
+        <ChevronDown className="w-6 h-6" />
+      </motion.div>
 
       {/* Bottom Divider */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-white/20"></div>

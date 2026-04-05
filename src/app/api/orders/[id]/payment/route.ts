@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { snap } from "@/lib/midtrans"; // Import Midtrans Snap API
+import { snap } from "@/lib/midtrans";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,16 @@ export async function POST(
   const { id: orderId } = await params;
 
   try {
+    // Check rate limit (3 checkout attempts per hour per order)
+    const rateLimitResult = await rateLimit.checkout(orderId);
+    if (!rateLimitResult.success) {
+      const minutesLeft = Math.ceil((rateLimitResult.reset - Date.now()) / 60000);
+      return NextResponse.json(
+        { success: false, error: `Too many payment attempts. Please try again in ${minutesLeft} minutes.` },
+        { status: 429 }
+      );
+    }
+
     // Fetch order details
     const orderResult = await db
       .select({
@@ -69,6 +80,7 @@ export async function POST(
     };
 
     const finishUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/order-success?id=${orderId}`;
+    const errorUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payment-failed?order=${orderId}`;
 
     // Create transaction token
     const transaction = {
@@ -77,6 +89,7 @@ export async function POST(
       credit_card: creditCard,
       callbacks: {
         finish: finishUrl,
+        error: errorUrl,
       },
     };
 

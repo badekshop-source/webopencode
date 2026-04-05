@@ -1,7 +1,7 @@
 // src/app/kyc/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Upload, Check, FileText, Smartphone, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ interface OrderInfo {
   kycStatus: string;
 }
 
-export default function KycPage() {
+function KycPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orderId = searchParams.get('order');
@@ -374,5 +374,20 @@ export default function KycPage() {
       </main>
       <LandingFooter />
     </div>
+  );
+}
+
+export default function KycPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </div>
+    }>
+      <KycPageContent />
+    </Suspense>
   );
 }

@@ -3,12 +3,12 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import jsQR from "jsqr";
 import { QrCode, ScanLine, CheckCircle2, XCircle, Loader2, Smartphone, User, Package, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { cn } from "@/lib/utils";
 
 interface ScannedOrder {
   id: string;
@@ -32,59 +32,19 @@ export default function KycScannerPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [manualInput, setManualInput] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number>(null);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-      setIsCameraActive(false);
-    }
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    try {
-      setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setIsCameraActive(true);
-      }
-    } catch {
-      setError("Could not access camera. Please ensure you have granted permission.");
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, [stopCamera]);
-
-  const handleScan = async () => {
-    if (!scannedData && !manualInput.trim()) {
-      setError("Please enter an order number to scan");
-      return;
-    }
-    
-    // Use the manual input as the scan data
-    const scanInput = manualInput.trim() || scannedData;
-    await handleManualSubmit({ preventDefault: () => {} } as React.FormEvent);
-  };
-
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualInput.trim()) return;
-
+  const fetchOrder = useCallback(async (searchValue: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(manualInput.trim())}`);
+      const response = await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(searchValue)}`);
       const data = await response.json();
 
       if (!response.ok || !data.orders?.length) {
@@ -109,6 +69,93 @@ export default function KycScannerPage() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const scanFrame = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
+        });
+
+        if (code && code.data) {
+          // QR Code detected! Format: badekshop:orderId
+          const orderId = code.data.replace('badekshop:', '');
+          if (orderId) {
+            setIsScanning(false);
+            fetchOrder(orderId);
+            return;
+          }
+        }
+      }
+    }
+
+    animationFrameRef.current = requestAnimationFrame(scanFrame);
+  }, [fetchOrder]);
+
+  const stopCamera = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+    setIsScanning(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setIsCameraActive(true);
+      }
+    } catch {
+      setError("Could not access camera. Please ensure you have granted permission.");
+    }
+  }, []);
+
+  const startScanning = useCallback(() => {
+    setIsScanning(true);
+    animationFrameRef.current = requestAnimationFrame(scanFrame);
+  }, [scanFrame]);
+
+  const stopScanning = useCallback(() => {
+    setIsScanning(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualInput.trim()) return;
+    stopScanning();
+    await fetchOrder(manualInput.trim());
   };
 
   const processPickup = async () => {
@@ -137,6 +184,7 @@ export default function KycScannerPage() {
   };
 
   const resetScanner = () => {
+    stopScanning();
     setScannedData(null);
     setOrder(null);
     setError(null);
@@ -151,6 +199,9 @@ export default function KycScannerPage() {
         <h1 className="text-2xl font-bold text-gray-900">QR Code Scanner</h1>
         <p className="text-sm text-gray-500 mt-1">Scan customer QR code to verify and process SIM card pickup</p>
       </div>
+
+      {/* Hidden canvas for QR processing */}
+      <canvas ref={canvasRef} className="hidden" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Scanner */}
@@ -176,6 +227,14 @@ export default function KycScannerPage() {
                         <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-blue-500 -mb-0.5 -mr-0.5 rounded-br-lg" />
                       </div>
                     </div>
+                    {isScanning && (
+                      <div className="absolute bottom-3 left-0 right-0 text-center">
+                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-black/60 text-white text-xs rounded-full">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Scanning for QR code...
+                        </span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -191,19 +250,14 @@ export default function KycScannerPage() {
                     <QrCode className="h-4 w-4 mr-2" />
                     Start Camera
                   </Button>
+                ) : isScanning ? (
+                  <Button onClick={stopScanning} variant="outline" className="flex-1">
+                    Stop Scanning
+                  </Button>
                 ) : (
-                  <Button onClick={handleScan} disabled={isLoading} className="flex-1">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Scanning...
-                      </>
-                    ) : (
-                      <>
-                        <ScanLine className="h-4 w-4 mr-2" />
-                        Scan QR Code
-                      </>
-                    )}
+                  <Button onClick={startScanning} className="flex-1">
+                    <ScanLine className="h-4 w-4 mr-2" />
+                    Start Scanning
                   </Button>
                 )}
                 {isCameraActive && (
@@ -356,19 +410,19 @@ export default function KycScannerPage() {
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-start gap-2">
               <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
-              Verify customer&apos;s passport matches the one in the system
+              Start camera and point at customer&apos;s QR code
             </li>
             <li className="flex items-start gap-2">
               <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
-              Confirm customer has the QR code from their email
+              Or enter order number manually if QR scanning fails
             </li>
             <li className="flex items-start gap-2">
               <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
-              Hand over the SIM card only after successful verification
+              Verify customer&apos;s passport matches the system
             </li>
             <li className="flex items-start gap-2">
               <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
-              Record any issues in the admin system
+              Click &quot;Confirm Pickup&quot; to complete the order
             </li>
           </ul>
         </CardContent>

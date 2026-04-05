@@ -1,7 +1,7 @@
 // src/app/order-success/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle, ArrowRight, FileText, MapPin, Clock, Smartphone, Upload, Loader2, Shield, AlertCircle, QrCode, Download, Camera } from 'lucide-react';
@@ -18,14 +18,21 @@ interface OrderInfo {
   imeiNumber: string | null;
   paymentStatus: string;
   kycStatus: string;
+  kycAttempts: number;
 }
 
-export default function OrderSuccessPage() {
+function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('id');
+  const transactionStatus = searchParams.get('transaction_status');
+  const midtransSuccess = transactionStatus === 'capture' || transactionStatus === 'settlement';
 
   const [order, setOrder] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Hybrid validation states
+  const [isVerified, setIsVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
 
   // KYC form state
   const [file, setFile] = useState<File | null>(null);
@@ -37,30 +44,25 @@ export default function OrderSuccessPage() {
   const [consent, setConsent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Initial order fetch
   useEffect(() => {
     if (!orderId) {
-      console.log('No orderId in URL');
       setLoading(false);
+      setIsVerifying(false);
       return;
     }
 
-    console.log('Fetching order with ID:', orderId);
-
-    const fetchOrder = async () => {
+        const fetchOrder = async () => {
       try {
-        const response = await fetch(`/api/orders`);
-        if (!response.ok) throw new Error('Failed to fetch orders');
+        const response = await fetch(`/api/orders/track?id=${orderId}`);
+        if (!response.ok) throw new Error('Failed to fetch order');
         const data = await response.json();
-        const foundOrder = data.orders?.find((o: any) => o.id === orderId);
-        console.log('Found order:', foundOrder?.id, 'Payment:', foundOrder?.paymentStatus);
+        const foundOrder = data.orders?.[0];
 
-        if (!foundOrder) {
-          console.error('Order not found with ID:', orderId);
-          return;
-        }
+        if (!foundOrder) return;
 
-        let productName = 'Unknown';
-        if (foundOrder.productId) {
+        let productName = foundOrder.productName || 'Unknown';
+        if (!foundOrder.productName && foundOrder.productId) {
           try {
             const prodRes = await fetch(`/api/products/${foundOrder.productId}`);
             if (prodRes.ok) {
@@ -80,10 +82,17 @@ export default function OrderSuccessPage() {
           imeiNumber: foundOrder.imeiNumber,
           paymentStatus: foundOrder.paymentStatus,
           kycStatus: foundOrder.kycStatus,
+          kycAttempts: foundOrder.kycAttempts || 0,
         });
 
         if (foundOrder.imeiNumber) {
           setImei(foundOrder.imeiNumber);
+        }
+
+        // If DB already says paid, skip verification
+        if (foundOrder.paymentStatus === 'paid') {
+          setIsVerified(true);
+          setIsVerifying(false);
         }
       } catch (err) {
         console.error('Error fetching order:', err);
@@ -95,7 +104,55 @@ export default function OrderSuccessPage() {
     fetchOrder();
   }, [orderId]);
 
-  const isPaid = order?.paymentStatus === 'paid';
+  // Background verification: poll DB until paymentStatus is 'paid'
+  useEffect(() => {
+    if (!orderId || !midtransSuccess) {
+      setIsVerifying(false);
+      return;
+    }
+
+    // If already verified from initial fetch, skip
+    if (order?.paymentStatus === 'paid') {
+      setIsVerified(true);
+      setIsVerifying(false);
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 5;
+    const interval = 2000;
+
+    const verify = async () => {
+      try {
+        const response = await fetch(`/api/orders/track?id=${orderId}`);
+        const data = await response.json();
+        const foundOrder = data.orders?.[0];
+
+        if (foundOrder?.paymentStatus === 'paid') {
+          setIsVerified(true);
+          setIsVerifying(false);
+          // Update order state with latest payment status
+          setOrder(prev => prev ? { ...prev, paymentStatus: 'paid' } : null);
+          return;
+        }
+      } catch {
+        // Silently fail, will retry
+      }
+
+      attempts++;
+      if (attempts >= maxAttempts) {
+        // After max attempts, allow form anyway (with warning shown via isVerifying=false)
+        setIsVerifying(false);
+      } else {
+        setTimeout(verify, interval);
+      }
+    };
+
+    verify();
+  }, [orderId, midtransSuccess, order?.paymentStatus]);
+
+  // Show KYC form immediately if Midtrans indicates success, even if DB not updated yet
+  const showKycForm = midtransSuccess || order?.paymentStatus === 'paid';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -214,7 +271,15 @@ export default function OrderSuccessPage() {
 
   if (success) {
     const isAutoApproved = order?.kycStatus === 'auto_approved';
+    const isRetry = order?.kycStatus === 'retry_1' || order?.kycStatus === 'retry_2';
+    const isUnderReview = order?.kycStatus === 'under_review';
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`badekshop:${order?.id}`)}`;
+
+    const educationMessage = order?.kycStatus === 'retry_1'
+      ? "Oops! The photo seems a bit blurry. Please try again in a brighter area to speed up your activation."
+      : order?.kycStatus === 'retry_2'
+      ? "The photo is still unclear, but don't worry! Your order is still being processed. Our team will manually verify your photo now."
+      : null;
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -223,18 +288,43 @@ export default function OrderSuccessPage() {
           <div className="container mx-auto px-4 py-8 max-w-2xl">
             {/* Success Header */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center mb-6">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-10 h-10 text-green-600" />
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                isAutoApproved ? 'bg-green-100' : isRetry ? 'bg-amber-100' : 'bg-blue-100'
+              }`}>
+                {isAutoApproved ? (
+                  <CheckCircle className="w-10 h-10 text-green-600" />
+                ) : isRetry ? (
+                  <Clock className="w-10 h-10 text-amber-600" />
+                ) : (
+                  <FileText className="w-10 h-10 text-blue-600" />
+                )}
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                {isAutoApproved ? 'KYC Approved!' : 'Passport Submitted!'}
+                {isAutoApproved ? 'KYC Approved!' : isRetry ? 'Photo Needs Improvement' : 'Passport Submitted!'}
               </h1>
               <p className="text-gray-500 mb-2">
                 {isAutoApproved
                   ? 'Your passport has been verified automatically.'
+                  : isRetry
+                  ? 'Your photo has been received but needs improvement.'
                   : 'Your passport has been submitted for review.'}
               </p>
             </div>
+
+            {/* Education Message for Retries */}
+            {isRetry && educationMessage && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6">
+                <div className="flex items-start gap-4">
+                  <Clock className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-semibold text-amber-900 mb-1">
+                      {order?.kycStatus === 'retry_1' ? 'Attempt 1 of 3' : 'Attempt 2 of 3'}
+                    </h3>
+                    <p className="text-sm text-amber-700">{educationMessage}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* QR Code - Show only if auto-approved */}
             {isAutoApproved && (
@@ -287,16 +377,36 @@ export default function OrderSuccessPage() {
               </div>
             )}
 
-            {/* Under Review Message */}
+            {/* Under Review or Retry Message */}
             {!isAutoApproved && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6">
+              <div className={`rounded-2xl p-6 mb-6 ${
+                isRetry ? 'bg-amber-50 border border-amber-200' :
+                isUnderReview ? 'bg-blue-50 border border-blue-200' :
+                'bg-amber-50 border border-amber-200'
+              }`}>
                 <div className="flex items-start gap-4">
-                  <Clock className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
+                  {isRetry ? (
+                    <Clock className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
+                  ) : isUnderReview ? (
+                    <FileText className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
+                  ) : (
+                    <Clock className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
+                  )}
                   <div>
-                    <h3 className="font-semibold text-amber-900 mb-1">Under Review</h3>
-                    <p className="text-sm text-amber-700">
-                      Your passport is being reviewed by our team. You will receive a QR code via email once approved.
-                      This usually takes 1-2 hours.
+                    <h3 className={`font-semibold mb-1 ${
+                      isRetry ? 'text-amber-900' : isUnderReview ? 'text-blue-900' : 'text-amber-900'
+                    }`}>
+                      {isRetry ? `Attempt ${order?.kycAttempts || 1} of 3` :
+                       isUnderReview ? 'Under Manual Review' :
+                       'Under Review'}
+                    </h3>
+                    <p className={`text-sm ${
+                      isRetry ? 'text-amber-700' : isUnderReview ? 'text-blue-700' : 'text-amber-700'
+                    }`}>
+                      {isRetry ? educationMessage :
+                       isUnderReview
+                        ? 'Your passport is being reviewed by our team. You will receive a QR code via email once approved. This usually takes 1-2 hours.'
+                        : 'Your passport is being reviewed by our team. You will receive a QR code via email once approved.'}
                     </p>
                   </div>
                 </div>
@@ -363,10 +473,25 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* KYC Upload Form */}
-          {isPaid && !success && (
+          {showKycForm && !success && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">Identity Verification</h2>
               <p className="text-sm text-gray-500 mb-6">Upload your passport photo and confirm your IMEI number to activate your SIM card.</p>
+
+              {/* Payment Verification Status */}
+              {isVerifying && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" />
+                  <p className="text-sm text-blue-700">Verifying payment with our system...</p>
+                </div>
+              )}
+
+              {!isVerifying && !isVerified && order?.paymentStatus !== 'paid' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <p className="text-sm text-amber-700">Payment confirmation pending. You can still submit your documents.</p>
+                </div>
+              )}
 
               {/* Government Regulation Notice */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
@@ -485,10 +610,15 @@ export default function OrderSuccessPage() {
 
                 <button
                   type="submit"
-                  disabled={!file || isUploading || imei.length !== 15 || !consent}
+                  disabled={!file || isUploading || imei.length !== 15 || !consent || isVerifying}
                   className="w-full py-3 px-4 rounded-xl text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isUploading ? (
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying payment...
+                    </>
+                  ) : isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Uploading...
@@ -535,5 +665,24 @@ export default function OrderSuccessPage() {
       </main>
       <LandingFooter />
     </div>
+  );
+}
+
+export default function OrderSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <LandingHeader />
+        <main className="flex-1 pt-20 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-500">Loading order details...</p>
+          </div>
+        </main>
+        <LandingFooter />
+      </div>
+    }>
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

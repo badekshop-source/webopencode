@@ -87,8 +87,9 @@ export async function sendKycApprovedNotification(orderId: string): Promise<bool
   }
 }
 
-// Send pickup reminder 24 hours before arrival
-export async function schedulePickupReminder(orderId: string): Promise<NodeJS.Timeout | null> {
+// Pickup reminder is now handled by /api/cron/pickup-reminders cron job
+// This function is kept for backward compatibility but does nothing
+export async function schedulePickupReminder(orderId: string): Promise<boolean> {
   try {
     const orderResult = await db
       .select({
@@ -102,41 +103,17 @@ export async function schedulePickupReminder(orderId: string): Promise<NodeJS.Ti
 
     if (!orderResult.length) {
       console.error(`Order ${orderId} not found for pickup reminder`);
-      return null;
+      return false;
     }
 
     const { order, product } = orderResult[0];
 
-    // Calculate time difference between now and arrival date
     const arrivalTime = new Date(order.arrivalDate).getTime();
     const currentTime = Date.now();
     const timeUntilArrival = arrivalTime - currentTime;
+    const twentyFourHours = 24 * 60 * 60 * 1000;
 
-    // Schedule email to be sent 24 hours before arrival (if arrival is in the future)
-    const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-    const scheduledTime = timeUntilArrival - twentyFourHours;
-
-    if (scheduledTime > 0) {
-      // Set timeout to send the email
-      const timeoutId = setTimeout(async () => {
-        try {
-          await sendPickupReminderEmail({
-            to: order.customerEmail,
-            orderNumber: order.orderNumber,
-            productName: product?.name || 'Product',
-            arrivalDate: order.arrivalDate,
-            flightNumber: order.flightNumber,
-            activationOutlet: order.activationOutlet,
-          });
-          console.log(`Pickup reminder email sent for order ${order.id}`);
-        } catch (error) {
-          console.error(`Error sending pickup reminder for order ${order.id}:`, error);
-        }
-      }, scheduledTime);
-
-      return timeoutId;
-    } else {
-      // Arrival date is in the past or less than 24 hours away, send immediately
+    if (timeUntilArrival <= twentyFourHours) {
       await sendPickupReminderEmail({
         to: order.customerEmail,
         orderNumber: order.orderNumber,
@@ -146,16 +123,20 @@ export async function schedulePickupReminder(orderId: string): Promise<NodeJS.Ti
         activationOutlet: order.activationOutlet,
       });
       console.log(`Pickup reminder email sent immediately for order ${order.id}`);
-      return null;
+    } else {
+      console.log(`Pickup reminder will be sent by cron job for order ${order.id}`);
     }
+
+    return true;
   } catch (error) {
     console.error('Error scheduling pickup reminder:', error);
-    return null;
+    return false;
   }
 }
 
-// Send follow-up email after order completion
-export async function scheduleFollowUpEmail(orderId: string): Promise<NodeJS.Timeout | null> {
+// Follow-up email is now handled by /api/cron/follow-up-emails cron job
+// This function is kept for backward compatibility but does nothing
+export async function scheduleFollowUpEmail(orderId: string): Promise<boolean> {
   try {
     const orderResult = await db
       .select({
@@ -169,36 +150,19 @@ export async function scheduleFollowUpEmail(orderId: string): Promise<NodeJS.Tim
 
     if (!orderResult.length) {
       console.error(`Order ${orderId} not found for follow-up email`);
-      return null;
+      return false;
     }
 
     const { order, product } = orderResult[0];
 
-    // Generate a token for review access
     const token = generateOrderToken(order.id, order.customerEmail, order.orderNumber);
     const reviewLink = `${process.env.NEXT_PUBLIC_APP_URL}/order/${order.id}/review?token=${token}`;
 
-    // Schedule email to be sent 3 days after completion
-    const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        await sendFollowUpEmail({
-          to: order.customerEmail,
-          orderNumber: order.orderNumber,
-          productName: product?.name || 'Product',
-          reviewLink,
-        });
-        console.log(`Follow-up email sent for order ${order.id}`);
-      } catch (error) {
-        console.error(`Error sending follow-up email for order ${order.id}:`, error);
-      }
-    }, threeDays);
-
-    return timeoutId;
+    console.log(`Follow-up email will be sent by cron job for order ${order.id}`);
+    return true;
   } catch (error) {
     console.error('Error scheduling follow-up email:', error);
-    return null;
+    return false;
   }
 }
 

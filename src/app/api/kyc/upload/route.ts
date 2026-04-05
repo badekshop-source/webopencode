@@ -208,6 +208,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // User education messages based on attempt count
+    const educationMessages: Record<string, string> = {
+      'retry_1': "Oops! The photo seems a bit blurry. Please try again in a brighter area to speed up your activation.",
+      'retry_2': "The photo is still unclear, but don't worry! Your order is still being processed. Our team will manually verify your photo now.",
+    };
+
+    const retryMessage = educationMessages[newKycStatus];
+
     return NextResponse.json({
       success: true,
       data: {
@@ -218,7 +226,8 @@ export async function POST(request: NextRequest) {
             ? "Document uploaded and approved successfully!"
             : newKycStatus === "under_review"
             ? "Document uploaded and sent for manual review. You'll receive an update soon."
-            : `Document uploaded. Attempt ${newAttempts} of 3. ${validationResult.issues.join(', ')}`,
+            : retryMessage || `Document uploaded. Attempt ${newAttempts} of 3.`,
+        retryMessage,
       },
     });
   } catch (error) {

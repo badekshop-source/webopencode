@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/expire-orders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/pickup-reminders",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/follow-up-emails",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

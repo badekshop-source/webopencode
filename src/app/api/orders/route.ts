@@ -1,10 +1,11 @@
 // src/app/api/orders/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { orders } from '@/lib/db/schema';
 import { eq, and, asc, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateOrderToken, getTokenExpiryDate } from '@/lib/token';
+import { rateLimit } from '@/lib/rate-limit';
 
 // Zod schema for order validation
 const orderSchema = z.object({
@@ -62,7 +63,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!db) {
     return NextResponse.json(
       { 
@@ -74,6 +75,20 @@ export async function POST(request: Request) {
   }
   
   try {
+    // Check rate limit (3 checkout attempts per hour per IP)
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    const rateLimitResult = await rateLimit.checkout(ip);
+    if (!rateLimitResult.success) {
+      const minutesLeft = Math.ceil((rateLimitResult.reset - Date.now()) / 60000);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Too many checkout attempts. Please try again in ${minutesLeft} minutes.` 
+        }, 
+        { status: 429 }
+      );
+    }
+
     const data = await request.json();
     
     // Validate with Zod

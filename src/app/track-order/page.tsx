@@ -167,8 +167,8 @@ export default function TrackOrderPage() {
 
                   {/* Status Tracker */}
                   <OrderStatusTracker
-                    orderStatus={order.orderStatus}
-                    kycStatus={order.kycStatus}
+                    orderStatus={order.orderStatus as any}
+                    kycStatus={order.kycStatus as any}
                     kycAttempts={0}
                   />
 

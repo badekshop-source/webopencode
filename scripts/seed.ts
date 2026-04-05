@@ -29,19 +29,37 @@ const seedData = async () => {
   const adminEmail = 'badekshop@gmail.com';
   const adminPassword = 'bali2026';
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  const adminId = '00000000-0000-0000-0000-000000000001';
 
   // Check if admin exists
   const existingAdmin = await sql`SELECT id FROM profiles WHERE email = ${adminEmail}`;
   
   if (existingAdmin.length === 0) {
+    // Create better-auth user
     await sql`
-      INSERT INTO profiles (email, name, role, created_at, updated_at)
-      VALUES (${adminEmail}, 'BadekShop Admin', 'admin', NOW(), NOW())
+      INSERT INTO "user" (id, email, name, email_verified, created_at, updated_at)
+      VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', true, NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
     `;
+
+    // Create better-auth account with password
+    await sql`
+      INSERT INTO account (id, user_id, account_id, provider_id, password, created_at, updated_at)
+      VALUES ('acc-admin-001', ${adminId}, ${adminEmail}, 'credential', ${hashedPassword}, NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `;
+
+    // Create profile
+    await sql`
+      INSERT INTO profiles (id, email, name, role, created_at, updated_at)
+      VALUES (${adminId}, ${adminEmail}, 'BadekShop Admin', 'admin', NOW(), NOW())
+      ON CONFLICT (id) DO NOTHING
+    `;
+
     console.log('✓ Admin user created');
     console.log(`  Email: ${adminEmail}`);
     console.log(`  Password: ${adminPassword}`);
-    console.log(`  Note: Password hashing will be handled by better-auth\n`);
+    console.log(`  Note: Login at http://localhost:3000/admin/login\n`);
   } else {
     console.log('✓ Admin user already exists\n');
   }

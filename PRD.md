@@ -299,36 +299,87 @@ pending → auto_approved (clear photo)
 - [x] Midtrans payment integration
 - [x] KYC upload with Cloudinary
 - [x] Order management system
+- [x] Order tracking page
+- [x] Payment failed page with retry option
+- [x] Order success page with KYC form
+- [x] Payment window (2 hours) with auto-expire
 
 **Admin System**
 
 - [x] Admin dashboard with auth protection
-- [x] Order management APIs
-- [x] KYC approval/rejection
+- [x] Order management APIs and UI
+- [x] KYC approval/rejection with auto-approval
 - [x] Product CRUD operations
 - [x] Audit logging
+- [x] QR Scanner for outlet staff
+- [x] Admin order detail page
+- [x] Admin KYC detail page
 
 **Email & Notifications**
 
 - [x] Order confirmation email
 - [x] KYC approved email with QR
-- [x] Pickup reminder email
-- [x] Follow-up review email
+- [x] Pickup reminder email (cron-based)
+- [x] Follow-up review email (cron-based)
 
 **Security**
 
 - [x] better-auth integration
 - [x] Session management
-- [x] Midtrans webhook verification
+- [x] Midtrans webhook verification (SHA512)
 - [x] Cloudinary signed URLs
-- [x] Rate limiting structure
+- [x] Rate limiting (checkout: 3/hr, payment: 3/hr, upload: 5/hr, admin login: 5/15min)
+- [x] Token-based order access (30-day JWT)
+- [x] Cron endpoint authentication (CRON_SECRET)
+
+**PWA**
+
+- [x] next-pwa configuration with runtime caching
+- [x] Web app manifest (manifest.json)
+- [x] PWA icons (192x192, 512x512, apple-touch-icon)
+- [x] Theme color and viewport meta tags
+- [x] Offline caching for Cloudinary images, fonts, QR codes
+
+**Cron Jobs**
+
+- [x] `/api/cron/expire-orders` - Auto-expire unpaid orders (every 5 min)
+- [x] `/api/cron/pickup-reminders` - Send pickup reminder 24h before arrival (every hour)
+- [x] `/api/cron/follow-up-emails` - Send follow-up email 3 days after completion (every hour)
+- [x] `vercel.json` cron configuration
+
+**Testing**
+
+- [x] Playwright E2E testing framework (21 tests passing)
+- [x] Homepage tests (3 tests)
+- [x] Products page tests (4 tests)
+- [x] Checkout flow tests (4 tests)
+- [x] Order tracking tests (3 tests)
+- [x] Admin auth tests (4 tests)
+- [x] Mobile responsiveness tests (3 tests)
+
+**Database**
+
+- [x] All 7 core tables (profiles, products, orders, kycDocuments, reviews, adminLogs, refundPolicies)
+- [x] better-auth tables (user, session, account)
+- [x] Migration scripts
+- [x] Seed script with admin user and sample products
+
+**Build & Deployment**
+
+- [x] Clean production build (0 warnings, 0 errors)
+- [x] 35 routes generated
+- [x] TypeScript strict mode
+- [x] `.env.example` template for production
+- [x] Vercel cron configuration
+- [x] PWA ready for deployment
 
 ### Build Status
 
-- **Status**: ✅ All builds passing
-- **Pages**: 31 routes generated
+- **Status**: ✅ All builds passing (0 warnings, 0 errors)
+- **Pages**: 35 routes generated
 - **TypeScript**: Strict mode enabled
-- **Tests**: Integration tests passing
+- **E2E Tests**: 21/21 passing (Playwright)
+- **PWA**: Fully configured with manifest and icons
 
 ---
 

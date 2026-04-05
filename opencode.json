@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "testsprite": {
+      "type": "local",
+      "command": ["npx", "@testsprite/testsprite-mcp@latest"],
+      "environment": {
+        "API_KEY": "{env:TESTSPRITE_API_KEY}"
+      },
+      "enabled": true
+    }
+  }
+}

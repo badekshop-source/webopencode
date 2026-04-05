@@ -42,6 +42,28 @@ const account = pgTable("account", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// In-memory rate limiter for admin login
+const loginAttempts = new Map<string, { count: number; resetTime: number }>();
+
+function checkLoginRateLimit(ip: string): { success: boolean; remaining: number } {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxAttempts = 5;
+  const record = loginAttempts.get(ip);
+
+  if (!record || now > record.resetTime) {
+    loginAttempts.set(ip, { count: 1, resetTime: now + windowMs });
+    return { success: true, remaining: maxAttempts - 1 };
+  }
+
+  if (record.count >= maxAttempts) {
+    return { success: false, remaining: 0 };
+  }
+
+  record.count++;
+  return { success: true, remaining: maxAttempts - record.count };
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -55,4 +77,12 @@ export const auth = betterAuth({
     enabled: true,
   },
   secret: process.env.BETTER_AUTH_SECRET || "fallback-dev-secret-change-in-production",
+  rateLimit: {
+    enabled: true,
+    window: 15 * 60, // 15 minutes
+    max: 5, // 5 attempts per window
+  },
 });
+
+// Export rate limiter for use in middleware or other routes
+export { checkLoginRateLimit };

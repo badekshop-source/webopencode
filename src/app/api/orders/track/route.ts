@@ -13,14 +13,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const orderNumber = searchParams.get('orderNumber');
     const email = searchParams.get('email');
+    const id = searchParams.get('id');
 
-    if (!orderNumber && !email) {
-      return NextResponse.json({ success: false, error: 'Order number or email is required' }, { status: 400 });
+    if (!orderNumber && !email && !id) {
+      return NextResponse.json({ success: false, error: 'Order number, email, or ID is required' }, { status: 400 });
     }
 
     const conditions = [];
     if (orderNumber) conditions.push(eq(orders.orderNumber, orderNumber));
     if (email) conditions.push(eq(orders.customerEmail, email.toLowerCase()));
+    if (id) conditions.push(eq(orders.id, id));
 
     const result = await db
       .select({
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
         paymentStatus: orders.paymentStatus,
         kycStatus: orders.kycStatus,
         total: orders.total,
+        productId: orders.productId,
         createdAt: orders.createdAt,
         productName: products.name,
         productCategory: products.category,
