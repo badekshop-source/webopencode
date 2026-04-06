@@ -77,6 +77,13 @@ export const auth = betterAuth({
     enabled: true,
   },
   secret: process.env.BETTER_AUTH_SECRET || "fallback-dev-secret-change-in-production",
+  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  trustedOrigins: [
+    "http://localhost:3000",
+    "https://badekshop.vercel.app",
+    process.env.BETTER_AUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ].filter(Boolean) as string[],
   rateLimit: {
     enabled: true,
     window: 15 * 60, // 15 minutes

@@ -5,9 +5,8 @@ import { useState } from 'react';
 import { createAuthClient } from 'better-auth/client';
 import { useRouter } from 'next/navigation';
 
-// Initialize auth client
 const authClient = createAuthClient({
-  baseURL: typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || 'https://badekshop.vercel.app',
 });
 
 export default function AdminLoginPage() {
@@ -23,24 +22,25 @@ export default function AdminLoginPage() {
     setError('');
 
     try {
-      // Using better-auth for sign in
       const result = await authClient.signIn.email({
         email,
         password,
-        callbackURL: '/admin',
       });
 
       if (result?.error) {
         setError(result.error.message || 'Login failed');
-      } else {
-        // Redirect to admin dashboard
-        router.push('/admin' as any);
-        router.refresh();
+        setLoading(false);
+        return;
       }
+
+      // Small delay to ensure session is set
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Redirect to admin dashboard
+      window.location.href = '/admin';
     } catch (err) {
       setError('An unexpected error occurred');
       console.error(err);
-    } finally {
       setLoading(false);
     }
   };
