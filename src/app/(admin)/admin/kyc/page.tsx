@@ -1,13 +1,10 @@
 // src/app/(admin)/admin/kyc/page.tsx
 import { db } from "@/lib/db";
 import { orders, kycDocuments, profiles } from "@/lib/db/schema";
-import { eq, desc, and, ilike, sql, count, or, inArray } from "drizzle-orm";
-import Link from "next/link";
-import { Search, Filter, Eye, FileText } from "lucide-react";
+import { eq, desc, and, ilike, count, or } from "drizzle-orm";
+import { Search, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { DataTable } from "@/components/admin/data-table";
-import { StatusBadge } from "@/components/admin/status-badge";
-import { formatDate } from "@/lib/utils";
+import { KYCClientPage } from "@/components/admin/kyc-client-page";
 
 const KYC_STATUSES = [
   { value: "", label: "All Status" },
@@ -64,7 +61,7 @@ export default async function AdminKycPage({
       .leftJoin(profiles, eq(orders.userId, profiles.id))
       .where(where)
       .orderBy(desc(orders.updatedAt))
-      .limit(50),
+      .limit(100),
     db.select({ count: count() }).from(orders).where(where),
   ]);
 
@@ -77,13 +74,31 @@ export default async function AdminKycPage({
   const typedKycList = kycList as KYCListResult[];
   const totalKYC = totalResult[0]?.count ?? 0;
 
+  const tableData = typedKycList.map(({ order }) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    customerName: order.fullName,
+    customerEmail: order.customerEmail,
+    kycStatus: order.kycStatus ?? "pending",
+    kycAttempts: order.kycAttempts ?? 0,
+    passportUrl: order.passportUrl,
+    imeiNumber: order.imeiNumber,
+    updatedAt: order.updatedAt?.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }) ?? "N/A",
+  }));
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
-          <p className="text-sm text-gray-500 mt-1">{totalKYC} record{totalKYC !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {totalKYC} record{totalKYC !== 1 ? "s" : ""} • Select multiple records to batch approve/reject
+          </p>
         </div>
       </div>
 
@@ -107,69 +122,17 @@ export default async function AdminKycPage({
               className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {KYC_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        headers={[
-          { key: "order", label: "Order" },
-          { key: "customer", label: "Customer" },
-          { key: "passport", label: "Passport" },
-          { key: "imei", label: "IMEI" },
-          { key: "status", label: "KYC Status" },
-          { key: "attempts", label: "Attempts" },
-          { key: "date", label: "Updated" },
-          { key: "actions", label: "", className: "text-right" },
-        ]}
-        rows={typedKycList.map(({ order }) => ({
-          id: order.id,
-          cells: {
-            order: (
-              <span className="font-medium text-gray-900">{order.orderNumber}</span>
-            ),
-            customer: (
-              <div>
-                <p className="font-medium text-gray-900">{order.fullName}</p>
-                <p className="text-xs text-gray-500">{order.customerEmail}</p>
-              </div>
-            ),
-            passport: order.passportUrl ? (
-              <a href={order.passportUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-                View
-              </a>
-            ) : (
-              <span className="text-gray-400 text-sm">Not uploaded</span>
-            ),
-            imei: (
-              <span className="font-mono text-sm">{order.imeiNumber || "N/A"}</span>
-            ),
-            status: <StatusBadge status={order.kycStatus ?? "pending"} />,
-            attempts: (
-              <span className={(order.kycAttempts ?? 0) >= 3 ? "text-red-600 font-medium" : "text-gray-600"}>
-                {order.kycAttempts ?? 0} / 3
-              </span>
-            ),
-            date: <span className="text-gray-500">{formatDate(order.updatedAt)}</span>,
-            actions: (
-              <div className="flex justify-end">
-                <Link
-                  href={`/admin/kyc/${order.id}` as any}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <Eye className="h-4 w-4" />
-                  {order.kycStatus === "under_review" ? "Review" : "View"}
-                </Link>
-              </div>
-            ),
-          },
-        }))}
-        emptyMessage="No KYC records found"
-      />
+      {/* Client-side table with batch actions */}
+      <KYCClientPage initialData={tableData} />
     </div>
   );
 }
