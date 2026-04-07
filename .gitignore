@@ -6,6 +6,9 @@ node_modules/
 out/
 *.tsbuildinfo
 
+# Vercel
+.vercel/
+
 # Environment
 .env*.local
 !.env.example
