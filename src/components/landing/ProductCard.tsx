@@ -60,8 +60,8 @@ export function ProductCard({ product }: ProductCardProps) {
   const isActiveDiscount = hasDiscount && (!discountEnd || discountEnd >= new Date());
   
   // Determine which badge to show
-  // Priority: Discount > Badge (as per user's choice)
-  const showDiscountBadge = isActiveDiscount && !product.badge;
+  // Priority: Discount takes priority over badge
+  const showDiscountBadge = isActiveDiscount;
   const showProductBadge = product.badge && !showDiscountBadge;
 
   const badgeConfig = product.badge ? BADGE_CONFIG[product.badge] : null;

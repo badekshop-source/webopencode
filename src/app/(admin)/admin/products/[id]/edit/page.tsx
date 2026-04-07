@@ -127,7 +127,7 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
         stock: parseInt(formData.stock) || 0,
         features: formData.features,
         isActive: formData.isActive,
-        badge: formData.badge || undefined,
+        badge: formData.badge,
         discountPercentage: formData.discountPercentage ? parseInt(formData.discountPercentage) : undefined,
         discountStart: formData.discountStart || undefined,
         discountEnd: formData.discountEnd || undefined,

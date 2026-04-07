@@ -1,0 +1,34 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - Next.js 16
+  - React
+  - Tailwind CSS
+  - shadcn/ui
+
+routes:
+  - path: /admin/products/[id]/edit
+    file: src/app/(admin)/admin/products/[id]/edit/page.tsx
+    auth_required: true
+    description: Admin product edit page with badge selection
+
+features:
+  - name: Product Badge Selection
+    description: Admin can select product badge (None, Most Popular, Best Value, New Arrival, Limited Edition) on product edit page
+    files:
+      - src/app/(admin)/admin/products/[id]/edit/page.tsx
+    entry_route: /admin/products/[id]/edit
+    user_interactions:
+      - Navigate to admin product edit page
+      - Select badge from dropdown (None, Most Popular, Best Value, New Arrival, Limited Edition)
+      - Click Save to update product
+      - Verify badge is saved (None saves as null)
+    api_calls:
+      - method: PUT
+        endpoint: /api/admin/products/[id]
+        request_body:
+          badge: string (empty string converted to null on server)
+    auth_required: true
+
+known_limitations: []
