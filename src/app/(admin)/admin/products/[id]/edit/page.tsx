@@ -352,7 +352,7 @@ export default function AdminEditProductPage({ params }: { params: Promise<{ id:
                     Product Badge
                   </label>
                   <Select
-                    value={formData.badge || undefined}
+                    value={formData.badge || ''}
                     onValueChange={(value) =>
                       setFormData({ ...formData, badge: value as typeof formData.badge })
                     }
