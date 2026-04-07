@@ -1,7 +1,7 @@
 // src/app/(admin)/admin/page.tsx
 import { db } from "@/lib/db";
 import { orders, products } from "@/lib/db/schema";
-import { desc, eq, inArray, count, sum } from "drizzle-orm";
+import { desc, eq, inArray, count, sum, and, lte, gt, sql } from "drizzle-orm";
 import Link from "next/link";
 import {
   ShoppingCart,
@@ -14,6 +14,7 @@ import {
   Clock,
   ArrowUpRight,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -77,6 +78,32 @@ export default async function AdminDashboardPage() {
   orderStatsResult.forEach((r: { status: string | null; count: number | null }) => {
     if (r.status) orderStats[r.status] = r.count ?? 0;
   });
+
+  // Fetch low stock products (stock <= 10)
+  const lowStockProducts = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      stock: products.stock,
+      category: products.category,
+    })
+    .from(products)
+    .where(
+      and(
+        eq(products.isActive, true),
+        sql`${products.stock} <= 10`,
+        sql`${products.stock} >= 0`
+      )
+    )
+    .orderBy(products.stock)
+    .limit(5);
+
+  type LowStockProduct = {
+    id: string;
+    name: string;
+    stock: number | null;
+    category: string;
+  };
 
   const salesData = totalRevenue > 0
     ? [
@@ -296,6 +323,52 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Low Stock Alert */}
+      {lowStockProducts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-amber-900 mb-2">Low Stock Alert</h3>
+              <p className="text-sm text-amber-700 mb-4">
+                {lowStockProducts.length} product{lowStockProducts.length !== 1 ? 's' : ''} running low on stock
+              </p>
+              <div className="space-y-2">
+                {lowStockProducts.map((product: LowStockProduct) => {
+                  const stockCount = product.stock ?? 0;
+                  return (
+                    <Link
+                      key={product.id}
+                      href={`/admin/products/${product.id}/edit` as any}
+                      className="flex items-center justify-between py-2 px-3 -mx-3 rounded-lg hover:bg-amber-100 transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                        <p className="text-xs text-gray-500 capitalize">{product.category}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={cn(
+                          "inline-flex items-center px-2 py-1 rounded text-xs font-semibold",
+                          stockCount === 0 
+                            ? "bg-red-100 text-red-700" 
+                            : stockCount <= 5
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        )}>
+                          {stockCount === 0 ? "Out of Stock" : `${stockCount} left`}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

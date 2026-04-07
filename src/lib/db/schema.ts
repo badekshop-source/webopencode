@@ -28,6 +28,7 @@ export const products = pgTable("products", {
   discountStart: timestamp("discount_start"),
   discountEnd: timestamp("discount_end"),
   stock: integer("stock").default(0),
+  data: text("data"), // 'Unlimited', '1GB', '3GB', '5GB', '10GB', '20GB', '50GB', '100GB'
   isActive: boolean("is_active").default(true),
   badge: text("badge"), // 'popular', 'best_value', 'new', 'limited', or null
   features: json("features").$type<string[]>(), // Array of features

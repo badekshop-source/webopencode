@@ -35,6 +35,18 @@ const BADGE_OPTIONS = [
   { value: 'limited', label: 'Limited Edition', color: 'purple' },
 ] as const;
 
+const DATA_OPTIONS = [
+  '',
+  'Unlimited',
+  '1GB',
+  '3GB',
+  '5GB',
+  '10GB',
+  '20GB',
+  '50GB',
+  '100GB',
+];
+
 export default function AdminNewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -48,6 +60,7 @@ export default function AdminNewProductPage() {
     size: '' as '' | 'nano' | 'micro' | 'standard',
     price: '',
     stock: '0',
+    data: '',
     features: [] as string[],
     isActive: true,
     badge: '' as '' | 'popular' | 'best_value' | 'new' | 'limited',
@@ -72,6 +85,7 @@ export default function AdminNewProductPage() {
         stock: parseInt(formData.stock) || 0,
         features: formData.features,
         isActive: formData.isActive,
+        data: formData.data || undefined,
         badge: formData.badge || undefined,
         discountPercentage: formData.discountPercentage ? parseInt(formData.discountPercentage) : 0,
         discountStart: formData.discountStart || undefined,
@@ -215,6 +229,30 @@ export default function AdminNewProductPage() {
                       onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                       placeholder="e.g., 7"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Data Allowance
+                    </label>
+                    <Select
+                      value={formData.data || ''}
+                      onValueChange={(value) => setFormData({ ...formData, data: value || '' })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select data allowance" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DATA_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option || 'Not specified'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      e.g., Unlimited, 5GB, 10GB (shown on product card)
+                    </p>
                   </div>
                 </div>
 

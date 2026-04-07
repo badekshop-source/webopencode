@@ -1,7 +1,7 @@
 // src/app/api/orders/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { orders } from '@/lib/db/schema';
+import { orders, products } from '@/lib/db/schema';
 import { eq, and, asc, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateOrderToken, getTokenExpiryDate } from '@/lib/token';
@@ -94,6 +94,36 @@ export async function POST(request: NextRequest) {
     // Validate with Zod
     const validatedData = orderSchema.parse(data);
 
+    // Check product stock availability
+    const productResult = await db
+      .select({ id: products.id, stock: products.stock, name: products.name })
+      .from(products)
+      .where(eq(products.id, validatedData.productId))
+      .limit(1);
+
+    if (!productResult.length) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Product not found' 
+        }, 
+        { status: 404 }
+      );
+    }
+
+    const product = productResult[0];
+
+    // Check if product is in stock
+    if (product.stock !== null && product.stock <= 0) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `${product.name} is currently out of stock. Please try again later.` 
+        }, 
+        { status: 400 }
+      );
+    }
+
     // Convert date strings to Date objects for Drizzle
     const insertData: Record<string, any> = {
       ...validatedData,
@@ -134,6 +164,17 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(orders.id, tempOrder.id))
       .returning();
+
+    // Decrement product stock after successful order
+    if (product.stock !== null) {
+      await db
+        .update(products)
+        .set({
+          stock: product.stock - 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, product.id));
+    }
 
     // Trigger order confirmation workflow
     import('@/lib/workflows').then(workflows => {
